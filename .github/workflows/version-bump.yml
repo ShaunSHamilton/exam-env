@@ -1,0 +1,104 @@
+name: "version-bump"
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release Type"
+        type: choice
+        required: true
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  create-version-bump-pr:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: get current version and calculate new version
+        id: version
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        with:
+          script: |
+            const { version } = require('./package.json')
+            const [major, minor, patch] = version.split('.').map(Number)
+            
+            let newVersion
+            if (process.env.RELEASE_TYPE === 'major') {
+              newVersion = `${major + 1}.0.0`
+            } else if (process.env.RELEASE_TYPE === 'minor') {
+              newVersion = `${major}.${minor + 1}.0`
+            } else {
+              newVersion = `${major}.${minor}.${patch + 1}`
+            }
+            
+            core.setOutput('current_version', version)
+            core.setOutput('new_version', newVersion)
+            console.log(`Bumping version from ${version} to ${newVersion}`)
+
+      - name: update package.json
+        uses: actions/github-script@v7
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        with:
+          script: |
+            const fs = require('fs')
+            const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
+            packageJson.version = process.env.NEW_VERSION
+            fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2) + '\n')
+
+      - name: update Cargo.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.new_version }}"/' src-tauri/Cargo.toml
+
+      - name: update tauri.conf.json
+        uses: actions/github-script@v7
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        with:
+          script: |
+            const fs = require('fs')
+            const tauriConf = JSON.parse(fs.readFileSync('./src-tauri/tauri.conf.json', 'utf8'))
+            tauriConf.version = process.env.NEW_VERSION
+            fs.writeFileSync('./src-tauri/tauri.conf.json', JSON.stringify(tauriConf, null, 2) + '\n')
+
+      - name: create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "release: ${{ steps.version.outputs.new_version }}"
+          branch: release/v${{ steps.version.outputs.new_version }}
+          delete-branch: true
+          title: "Release v${{ steps.version.outputs.new_version }}"
+          body: |
+            ## Version Bump: ${{ inputs.release_type }}
+            
+            This PR bumps the version from `${{ steps.version.outputs.current_version }}` to `${{ steps.version.outputs.new_version }}`.
+            
+            ### Changes
+            - Updated `package.json`
+            - Updated `src-tauri/Cargo.toml`
+            - Updated `src-tauri/tauri.conf.json`
+            
+            ### Next Steps
+            Once this PR is merged, the release workflow will automatically trigger to create a new release.
+          labels: |
+            release
+            automated
