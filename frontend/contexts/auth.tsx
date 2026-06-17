@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { verifyToken } from "../utils/fetch";
 import { setUser } from "@sentry/react";
 import { AuthContext } from ".";
+import { queryClient } from "./query";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Memoize queryFn to prevent infinite re-fetching
@@ -39,7 +40,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         newAuthorizationToken: newToken,
       });
     },
-    onSuccess() {
+    async onSuccess() {
+      await queryClient.invalidateQueries({
+        queryKey: ["exam", "exam-attempts", "exams"],
+      });
       // Invalidate and refetch the token query to update context
       token.refetch();
     },

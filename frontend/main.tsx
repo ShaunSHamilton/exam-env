@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ChakraProvider, ColorModeScript } from "@chakra-ui/react";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 
@@ -16,6 +16,7 @@ import { SplashscreenRoute } from "./pages/splashscreen";
 import { ExamLandingRoute } from "./pages/exam-landing";
 import { rootRoute } from "./pages/root";
 import { AuthProvider } from "./contexts/auth";
+import { queryClient } from "./contexts/query";
 import { theme } from "./theme";
 
 import "./index.css";
@@ -28,8 +29,6 @@ Sentry.init({
   tracesSampleRate: 1.0,
   enableLogs: true,
 });
-
-const queryClient = new QueryClient();
 
 const routes = [
   SplashscreenRoute,
@@ -54,5 +53,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         </ChakraProvider>
       </AuthProvider>
     </QueryClientProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
